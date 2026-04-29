@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GuardTube — AI YouTube Moderation Bot</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #FF2D2D;
+    --dark: #0A0A0A;
+    --darker: #050505;
+    --card: #111111;
+    --border: #1E1E1E;
+    --text: #E8E8E8;
+    --muted: #666;
+    --gold: #FFD700;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--darker);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 20px 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,5,5,0.85);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.4rem;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--red); }
+
+  .nav-cta {
+    background: var(--red);
+    color: #fff;
+    border: none;
+    padding: 10px 24px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: all 0.2s;
+  }
+  .nav-cta:hover { background: #e02020; transform: translateY(-1px); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 120px 40px 80px;
+    position: relative;
+  }
+
+  .hero-glow {
+    position: absolute;
+    top: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(255,45,45,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    padding: 6px 16px;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 32px;
+    animation: fadeUp 0.6s ease both;
+  }
+  .badge-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(3rem, 8vw, 7rem);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -3px;
+    margin-bottom: 28px;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+
+  h1 .accent { color: var(--red); }
+  h1 .outline {
+    -webkit-text-stroke: 1px rgba(255,255,255,0.3);
+    color: transparent;
+  }
+
+  .hero-sub {
+    font-size: 1.15rem;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.7;
+    margin-bottom: 48px;
+    font-weight: 300;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+
+  .btn-primary {
+    background: var(--red);
+    color: #fff;
+    border: none;
+    padding: 16px 36px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-primary:hover { background: #e02020; transform: translateY(-2px); box-shadow: 0 8px 30px rgba(255,45,45,0.3); }
+
+  .btn-secondary {
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 16px 36px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+    background: transparent;
+  }
+  .btn-secondary:hover { border-color: #444; background: #111; }
+
+  /* ── STATS ── */
+  .stats {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    margin-top: 80px;
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+
+  .stat {
+    padding: 28px 48px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+  .stat:last-child { border-right: none; }
+
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--red);
+    display: block;
+  }
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+
+  /* ── DEMO SECTION ── */
+  .section {
+    padding: 100px 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--red);
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.05;
+    margin-bottom: 20px;
+  }
+
+  .section-sub {
+    color: var(--muted);
+    font-size: 1.05rem;
+    line-height: 1.7;
+    max-width: 500px;
+    font-weight: 300;
+  }
+
+  /* ── DEMO BOX ── */
+  .demo-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    margin-top: 60px;
+    align-items: start;
+  }
+
+  .demo-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 32px;
+  }
+
+  .demo-box h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .demo-input-wrap {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+  }
+
+  .demo-input {
+    flex: 1;
+    background: #0A0A0A;
+    border: 1px solid var(--border);
+    border-right: none;
+    padding: 14px 18px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    outline: none;
+  }
+  .demo-input:focus { border-color: #333; }
+  .demo-input::placeholder { color: #333; }
+
+  .demo-btn {
+    background: var(--red);
+    color: #fff;
+    border: none;
+    padding: 14px 24px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .demo-btn:hover { background: #e02020; }
+  .demo-btn:disabled { background: #333; cursor: not-allowed; }
+
+  .demo-result {
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    background: #0A0A0A;
+    font-size: 0.95rem;
+    transition: all 0.3s;
+  }
+
+  .result-icon { font-size: 1.4rem; }
+  .result-text { flex: 1; }
+  .result-verdict {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    padding: 4px 12px;
+  }
+  .verdict-bad { background: rgba(255,45,45,0.2); color: var(--red); }
+  .verdict-good { background: rgba(0,200,100,0.15); color: #00C864; }
+
+  /* Comment feed */
+  .comment-feed {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 24px;
+  }
+
+  .feed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .feed-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--red);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .comment-item {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideIn 0.4s ease;
+  }
+  .comment-item:last-child { border-bottom: none; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .comment-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+  }
+
+  .comment-content { flex: 1; }
+  .comment-user { font-size: 0.75rem; color: var(--muted); margin-bottom: 2px; }
+  .comment-text { font-size: 0.9rem; }
+
+  .comment-status {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    font-weight: 500;
+  }
+  .status-deleted { background: rgba(255,45,45,0.15); color: var(--red); }
+  .status-kept { background: rgba(0,200,100,0.1); color: #00C864; }
+
+  /* ── FEATURES ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    margin-top: 60px;
+  }
+
+  .feature-card {
+    background: var(--darker);
+    padding: 40px 32px;
+    transition: background 0.2s;
+  }
+  .feature-card:hover { background: var(--card); }
+
+  .feature-icon {
+    font-size: 2rem;
+    margin-bottom: 20px;
+    display: block;
+  }
+
+  .feature-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    letter-spacing: -0.3px;
+  }
+
+  .feature-desc {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  /* ── LANGUAGES ── */
+  .lang-section {
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 60px;
+    text-align: center;
+  }
+
+  .lang-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 32px;
+  }
+
+  .lang-tag {
+    border: 1px solid var(--border);
+    padding: 8px 20px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .lang-tag:hover { border-color: var(--red); color: var(--text); }
+  .lang-tag.highlight { border-color: var(--red); color: var(--red); }
+
+  /* ── PRICING ── */
+  .pricing-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 60px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    margin-top: 60px;
+  }
+
+  .pricing-box::before {
+    content: '';
+    position: absolute;
+    top: -100px; left: 50%;
+    transform: translateX(-50%);
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(255,45,45,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .price-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .price-amount {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 800;
+    letter-spacing: -3px;
+    color: var(--text);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .price-amount span {
+    font-size: 0.4em;
+    color: var(--muted);
+    letter-spacing: 0;
+    vertical-align: super;
+  }
+
+  .price-type {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 40px;
+  }
+
+  .price-features {
+    list-style: none;
+    margin-bottom: 40px;
+    display: inline-block;
+    text-align: left;
+  }
+
+  .price-features li {
+    padding: 8px 0;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+  }
+
+  .price-features li::before {
+    content: '✓';
+    color: var(--red);
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+
+  /* ── CONTACT ── */
+  .contact-section {
+    padding: 100px 60px;
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .contact-form {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .form-input {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 16px 20px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .form-input:focus { border-color: #333; }
+  .form-input::placeholder { color: #333; }
+
+  textarea.form-input { resize: vertical; min-height: 120px; }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+  }
+  .footer-logo span { color: var(--red); }
+
+  .footer-text {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── SCROLLING TICKER ── */
+  .ticker-wrap {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    padding: 16px 0;
+    background: var(--card);
+  }
+
+  .ticker {
+    display: flex;
+    gap: 60px;
+    animation: ticker 20s linear infinite;
+    white-space: nowrap;
+  }
+
+  .ticker-item {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .ticker-item::before {
+    content: '●';
+    color: var(--red);
+    font-size: 0.5rem;
+  }
+
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  @media (max-width: 768px) {
+    nav { padding: 16px 20px; }
+    .section { padding: 60px 20px; }
+    .demo-container { grid-template-columns: 1fr; }
+    .features-grid { grid-template-columns: 1fr; }
+    .stats { flex-direction: column; }
+    .stat { border-right: none; border-bottom: 1px solid var(--border); }
+    footer { flex-direction: column; gap: 12px; text-align: center; }
+    .pricing-box { padding: 40px 20px; }
+    .lang-section { padding: 40px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">Guard<span>Tube</span></div>
+  <button class="nav-cta" onclick="document.getElementById('contact').scrollIntoView({behavior:'smooth'})">Get Demo</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="badge"><span class="badge-dot"></span> AI-Powered · Live Now</div>
+  <h1>Stop Toxic<br>Comments <span class="accent">Dead</span><br><span class="outline">In Their Tracks</span></h1>
+  <p class="hero-sub">AI bot that automatically detects and deletes harmful comments from your YouTube channel — in Telugu, Hindi, Tamil, English and every world language.</p>
+  <div class="hero-actions">
+    <a href="#demo" class="btn-primary" onclick="document.getElementById('demo').scrollIntoView({behavior:'smooth'}); return false;">Try Live Demo</a>
+    <a href="#pricing" class="btn-secondary" onclick="document.getElementById('pricing').scrollIntoView({behavior:'smooth'}); return false;">See Pricing</a>
+  </div>
+  <div class="stats">
+    <div class="stat">
+      <span class="stat-num">24/7</span>
+      <span class="stat-label">Auto Monitoring</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">2 min</span>
+      <span class="stat-label">Scan Frequency</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">50+</span>
+      <span class="stat-label">Languages</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">99%</span>
+      <span class="stat-label">Accuracy</span>
+    </div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <span class="ticker-item">Telugu Support</span>
+    <span class="ticker-item">Hindi Support</span>
+    <span class="ticker-item">Tamil Support</span>
+    <span class="ticker-item">Live Chat Moderation</span>
+    <span class="ticker-item">Auto Delete</span>
+    <span class="ticker-item">AI Powered</span>
+    <span class="ticker-item">24/7 Active</span>
+    <span class="ticker-item">Latin Script Detection</span>
+    <span class="ticker-item">Telugu Support</span>
+    <span class="ticker-item">Hindi Support</span>
+    <span class="ticker-item">Tamil Support</span>
+    <span class="ticker-item">Live Chat Moderation</span>
+    <span class="ticker-item">Auto Delete</span>
+    <span class="ticker-item">AI Powered</span>
+    <span class="ticker-item">24/7 Active</span>
+    <span class="ticker-item">Latin Script Detection</span>
+  </div>
+</div>
+
+<!-- DEMO -->
+<section class="section" id="demo">
+  <div class="section-label">Live Demo</div>
+  <div class="section-title">Test Any Comment<br>Right Now</div>
+  <p class="section-sub">Type any comment — in any language, any script — and see our AI judge it instantly.</p>
+
+  <div class="demo-container">
+    <div class="demo-left">
+      <div class="demo-box">
+        <h3>Comment Checker</h3>
+        <div class="demo-input-wrap">
+          <input class="demo-input" id="commentInput" type="text" placeholder="Type a comment to test..." />
+          <button class="demo-btn" id="checkBtn" onclick="checkComment()">Check</button>
+        </div>
+        <div class="demo-result" id="demoResult">
+          <span class="result-icon">💬</span>
+          <span class="result-text" style="color: var(--muted);">Enter a comment above to test the AI...</span>
+        </div>
+
+        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+          <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">Try These Examples</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button onclick="testExample('nee amma denganu')" style="background: rgba(255,45,45,0.1); border: 1px solid rgba(255,45,45,0.2); color: var(--red); padding: 6px 12px; font-size: 0.8rem; cursor: pointer; font-family: DM Sans;">Bad Example</button>
+            <button onclick="testExample('ella unaru bro!')" style="background: rgba(0,200,100,0.1); border: 1px solid rgba(0,200,100,0.2); color: #00C864; padding: 6px 12px; font-size: 0.8rem; cursor: pointer; font-family: DM Sans;">Good Example</button>
+            <button onclick="testExample('bakwaas video hai')" style="background: rgba(0,200,100,0.1); border: 1px solid rgba(0,200,100,0.2); color: #00C864; padding: 6px 12px; font-size: 0.8rem; cursor: pointer; font-family: DM Sans;">Criticism (Keep)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="comment-feed">
+        <div class="feed-header">
+          <span class="feed-title">Live Activity Feed</span>
+          <span class="live-badge"><span class="badge-dot"></span> Live</span>
+        </div>
+        <div id="commentFeed">
+          <div class="comment-item">
+            <div class="comment-avatar">👤</div>
+            <div class="comment-content">
+              <div class="comment-user">@user123</div>
+              <div class="comment-text">ella unaru anna! 🙏</div>
+            </div>
+            <span class="comment-status status-kept">KEPT</span>
+          </div>
+          <div class="comment-item">
+            <div class="comment-avatar">👤</div>
+            <div class="comment-content">
+              <div class="comment-user">@viewer456</div>
+              <div class="comment-text">nee amma ni denganu</div>
+            </div>
+            <span class="comment-status status-deleted">DELETED</span>
+          </div>
+          <div class="comment-item">
+            <div class="comment-avatar">👤</div>
+            <div class="comment-content">
+              <div class="comment-user">@fan789</div>
+              <div class="comment-text">Super video bro! Keep it up 🔥</div>
+            </div>
+            <span class="comment-status status-kept">KEPT</span>
+          </div>
+          <div class="comment-item">
+            <div class="comment-avatar">👤</div>
+            <div class="comment-content">
+              <div class="comment-user">@troll001</div>
+              <div class="comment-text">ninna cheyyana lo petta</div>
+            </div>
+            <span class="comment-status status-deleted">DELETED</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FEATURES -->
+<section class="section">
+  <div class="section-label">Features</div>
+  <div class="section-title">Everything You Need<br>To Stay Clean</div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <span class="feature-icon">🤖</span>
+      <div class="feature-title">AI Detection</div>
+      <p class="feature-desc">OpenAI GPT-4o-mini analyzes context, not just keywords. Understands sarcasm, slang, and cultural nuance.</p>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🌐</span>
+      <div class="feature-title">50+ Languages</div>
+      <p class="feature-desc">Telugu, Hindi, Tamil, English, Kannada, Malayalam and all world languages — including Latin script.</p>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">⚡</span>
+      <div class="feature-title">Every 2 Minutes</div>
+      <p class="feature-desc">Bot scans your entire channel every 2 minutes. Bad comments are gone before most people see them.</p>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">📺</span>
+      <div class="feature-title">Live Chat Too</div>
+      <p class="feature-desc">Protects your live streams in real-time. Toxic messages deleted instantly during broadcasts.</p>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🔄</span>
+      <div class="feature-title">Transliteration</div>
+      <p class="feature-desc">Sarvam AI converts "nee amma denganu" (Latin) to Telugu script for accurate detection.</p>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">☁️</span>
+      <div class="feature-title">Always On</div>
+      <p class="feature-desc">Hosted on cloud. Runs 24/7 without you doing anything. Set once, forget forever.</p>
+    </div>
+  </div>
+</section>
+
+<!-- LANGUAGES -->
+<div class="lang-section">
+  <div class="section-label">Language Support</div>
+  <div class="section-title" style="font-size: 2rem;">Detects Abuse In Any Language</div>
+  <div class="lang-grid">
+    <span class="lang-tag highlight">Telugu</span>
+    <span class="lang-tag highlight">Hindi</span>
+    <span class="lang-tag highlight">Tamil</span>
+    <span class="lang-tag highlight">English</span>
+    <span class="lang-tag">Kannada</span>
+    <span class="lang-tag">Malayalam</span>
+    <span class="lang-tag">Marathi</span>
+    <span class="lang-tag">Bengali</span>
+    <span class="lang-tag">Punjabi</span>
+    <span class="lang-tag">Gujarati</span>
+    <span class="lang-tag">Urdu</span>
+    <span class="lang-tag">Arabic</span>
+    <span class="lang-tag">Spanish</span>
+    <span class="lang-tag">French</span>
+    <span class="lang-tag">+ 40 more</span>
+  </div>
+</div>
+
+<!-- PRICING -->
+<section class="section" id="pricing">
+  <div class="section-label">Pricing</div>
+  <div class="section-title">One Price.<br>Everything Included.</div>
+
+  <div class="pricing-box">
+    <div class="price-label">One-Time Payment</div>
+    <div class="price-amount"><span>₹</span>1,00,000</div>
+    <div class="price-type">Complete Setup · Lifetime Access</div>
+    <ul class="price-features">
+      <li>Full bot setup on your YouTube channel</li>
+      <li>All videos + Shorts moderation</li>
+      <li>Live chat real-time moderation</li>
+      <li>50+ language support</li>
+      <li>24/7 cloud hosting included</li>
+      <li>Custom rules for your channel</li>
+      <li>1 month free support</li>
+      <li>Source code handover</li>
+    </ul>
+    <button class="btn-primary" onclick="document.getElementById('contact').scrollIntoView({behavior:'smooth'})" style="font-size: 1.1rem; padding: 18px 48px;">Book a Demo →</button>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section class="contact-section" id="contact">
+  <div class="section-label">Contact</div>
+  <div class="section-title">Book Your<br>Free Demo</div>
+  <p style="color: var(--muted); font-size: 1rem; line-height: 1.7; margin-top: 12px; font-weight: 300;">See the bot live on your channel before you pay anything.</p>
+
+  <div class="contact-form">
+    <input class="form-input" type="text" placeholder="Your Name" />
+    <input class="form-input" type="text" placeholder="YouTube Channel URL" />
+    <input class="form-input" type="tel" placeholder="WhatsApp Number" />
+    <textarea class="form-input" placeholder="Tell us about your channel..."></textarea>
+    <button class="btn-primary" style="padding: 18px; font-size: 1rem;" onclick="alert('Thank you! We will contact you within 24 hours.')">Send Message →</button>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Guard<span>Tube</span></div>
+  <div class="footer-text">AI-Powered YouTube Comment Moderation</div>
+  <div class="footer-text">Made with ❤️ in India</div>
+</footer>
+
+<script>
+async function checkComment() {
+  const input = document.getElementById('commentInput');
+  const result = document.getElementById('demoResult');
+  const btn = document.getElementById('checkBtn');
+  const text = input.value.trim();
+
+  if (!text) return;
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  result.innerHTML = '<span class="result-icon">⏳</span><span class="result-text" style="color: var(--muted);">Analyzing comment...</span>';
+
+  try {
+    const response = await fetch('https://yt-moderation-bot.onrender.com/test-comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const data = await response.json();
+    const isDelete = data.final_decision.includes('DELETE');
+
+    result.innerHTML = `
+      <span class="result-icon">${isDelete ? '🗑️' : '✅'}</span>
+      <span class="result-text">
+        <span style="font-size:0.8rem; color: var(--muted);">Original: ${data.original_text}</span>
+        ${data.transliterated_text !== data.original_text ? `<br><span style="font-size:0.8rem; color: var(--muted);">Transliterated: ${data.transliterated_text}</span>` : ''}
+      </span>
+      <span class="result-verdict ${isDelete ? 'verdict-bad' : 'verdict-good'}">${isDelete ? 'DELETE' : 'KEEP'}</span>
+    `;
+
+    // Add to feed
+    addToFeed(text, isDelete);
+
+  } catch (err) {
+    result.innerHTML = '<span class="result-icon">⚠️</span><span class="result-text" style="color: var(--muted);">Could not connect to bot. Make sure bot is running.</span>';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Check';
+}
+
+function testExample(text) {
+  document.getElementById('commentInput').value = text;
+  checkComment();
+}
+
+function addToFeed(text, isDelete) {
+  const feed = document.getElementById('commentFeed');
+  const item = document.createElement('div');
+  item.className = 'comment-item';
+  item.innerHTML = `
+    <div class="comment-avatar">👤</div>
+    <div class="comment-content">
+      <div class="comment-user">@you (just now)</div>
+      <div class="comment-text">${text}</div>
+    </div>
+    <span class="comment-status ${isDelete ? 'status-deleted' : 'status-kept'}">${isDelete ? 'DELETED' : 'KEPT'}</span>
+  `;
+  feed.insertBefore(item, feed.firstChild);
+  if (feed.children.length > 6) feed.removeChild(feed.lastChild);
+}
+
+document.getElementById('commentInput').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') checkComment();
+});
+</script>
+</body>
+</html>
